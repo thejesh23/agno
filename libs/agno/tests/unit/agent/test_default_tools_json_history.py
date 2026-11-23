@@ -345,3 +345,53 @@ def test_get_tool_call_history_returns_valid_json_when_empty():
     result = get_tool_call_history()
 
     assert json.loads(result) == []
+
+
+def _make_tool_call_session() -> AgentSession:
+    """Three runs, each with a system prompt; the second answers through a tool call."""
+    tool_call = {"id": "call-1", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}
+    runs = [
+        [
+            Message(role="system", content="SYS"),
+            Message(role="user", content="Q1"),
+            Message(role="assistant", content="A1"),
+        ],
+        [
+            Message(role="system", content="SYS"),
+            Message(role="user", content="Q2"),
+            Message(role="assistant", content=None, tool_calls=[tool_call]),
+            Message(role="tool", content="ok", tool_call_id="call-1"),
+            Message(role="assistant", content="A2"),
+        ],
+        [
+            Message(role="system", content="SYS"),
+            Message(role="user", content="Q3"),
+            Message(role="assistant", content="A3"),
+        ],
+    ]
+    return AgentSession(
+        session_id="session-1",
+        runs=[
+            RunOutput(run_id=f"run-{i}", session_id="session-1", agent_id="agent-1", messages=msgs)
+            for i, msgs in enumerate(runs)
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "num_chats, expected",
+    [
+        (None, ["Q1", "A1", "Q2", "A2", "Q3", "A3"]),
+        (0, []),
+        (1, ["Q3", "A3"]),
+        (2, ["Q2", "A2", "Q3", "A3"]),
+        (5, ["Q1", "A1", "Q2", "A2", "Q3", "A3"]),
+    ],
+)
+def test_get_chat_history_counts_user_agent_exchanges(num_chats, expected):
+    """A chat is a user message plus the agent's reply, not a raw message (system, tool call, tool result)."""
+    get_chat_history = _default_tools.get_chat_history_function(Agent(name="test-agent"), _make_tool_call_session())
+
+    result = json.loads(get_chat_history(num_chats=num_chats))
+
+    assert [m.get("content") for m in result] == expected

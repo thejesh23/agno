@@ -266,6 +266,23 @@ def create_knowledge_search_tool(
         return Function.from_callable(search_knowledge_base, name="search_knowledge_base")
 
 
+def select_chats(messages: List[Message], num_chats: Optional[int] = None) -> List[Message]:
+    """Return the user/assistant exchanges in ``messages``, keeping only the last ``num_chats``.
+
+    A chat is a user message plus the reply that follows it. System prompts, tool calls and
+    tool results are not chats, so they are dropped rather than counted.
+    """
+    chats = [m for m in messages if m.role == "user" or (m.role == "assistant" and m.content)]
+    if num_chats is None:
+        return chats
+    if num_chats <= 0:
+        return []
+    starts = [i for i, m in enumerate(chats) if m.role == "user"]
+    if len(starts) > num_chats:
+        chats = chats[starts[-num_chats] :]
+    return chats
+
+
 def get_chat_history_function(agent: Agent, session: AgentSession) -> Callable:
     def get_chat_history(num_chats: Optional[int] = None) -> str:
         """Use this function to get the chat history between the user and agent.
@@ -286,17 +303,12 @@ def get_chat_history_function(agent: Agent, session: AgentSession) -> Callable:
         """
         import json
 
-        history: List[Dict[str, Any]] = []
         all_chats = session.get_messages()
 
         if len(all_chats) == 0:
             return json.dumps([])
 
-        for chat in all_chats:  # type: ignore
-            history.append(chat.to_dict())  # type: ignore
-
-        if num_chats is not None:
-            history = history[-num_chats:]
+        history: List[Dict[str, Any]] = [chat.to_dict() for chat in select_chats(all_chats, num_chats)]
 
         return json.dumps(history, ensure_ascii=False)
 

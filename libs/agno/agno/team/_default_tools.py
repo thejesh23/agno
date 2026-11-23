@@ -26,6 +26,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from agno.agent import Agent
+from agno.agent._default_tools import select_chats
 from agno.db.base import AsyncBaseDb, BaseDb, SessionType
 from agno.exceptions import RunCancelledException
 from agno.filters import FilterExpr
@@ -185,7 +186,7 @@ def _get_update_user_memory_function(
 def _get_chat_history_function(team: "Team", session: TeamSession, async_mode: bool = False):
     def get_chat_history(num_chats: Optional[int] = None) -> str:
         """
-        Use this function to get the team chat history in reverse chronological order.
+        Use this function to get the team chat history, oldest chat first.
         Leave the num_chats parameter blank to get the entire chat history.
         Example:
             - To get the last chat, use num_chats=1
@@ -207,16 +208,13 @@ def _get_chat_history_function(team: "Team", session: TeamSession, async_mode: b
         if len(all_chats) == 0:
             return ""
 
-        history: List[Dict[str, Any]] = [chat.to_dict() for chat in all_chats]  # type: ignore
-
-        if num_chats is not None:
-            history = history[-num_chats:]
+        history: List[Dict[str, Any]] = [chat.to_dict() for chat in select_chats(all_chats, num_chats)]
 
         return json.dumps(history, ensure_ascii=False)
 
     async def aget_chat_history(num_chats: Optional[int] = None) -> str:
         """
-        Use this function to get the team chat history in reverse chronological order.
+        Use this function to get the team chat history, oldest chat first.
         Leave the num_chats parameter blank to get the entire chat history.
         Example:
             - To get the last chat, use num_chats=1
@@ -238,10 +236,7 @@ def _get_chat_history_function(team: "Team", session: TeamSession, async_mode: b
         if len(all_chats) == 0:
             return ""
 
-        history: List[Dict[str, Any]] = [chat.to_dict() for chat in all_chats]  # type: ignore
-
-        if num_chats is not None:
-            history = history[-num_chats:]
+        history: List[Dict[str, Any]] = [chat.to_dict() for chat in select_chats(all_chats, num_chats)]
 
         return json.dumps(history, ensure_ascii=False)
 
