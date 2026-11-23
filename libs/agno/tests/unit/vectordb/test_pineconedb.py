@@ -7,6 +7,8 @@ from agno.knowledge.document import Document
 from agno.vectordb.pineconedb import PineconeDb
 from agno.vectordb.search import SearchType
 
+from .conftest import CountingEmbedder
+
 # Configuration for tests
 TEST_INDEX_NAME = f"test_index_{uuid.uuid4().hex[:8]}"
 TEST_DIMENSION = 1024
@@ -615,3 +617,13 @@ def test_delete_by_metadata_complex(mock_pinecone_db):
         result = mock_pinecone_db.delete_by_metadata({"spicy": False})
         assert result is True
         mock_delete_by_metadata.assert_called_once_with({"spicy": False})
+
+
+def test_upsert_embeds_each_document_once(mock_pinecone_db):
+    """upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    mock_pinecone_db.embedder = embedder
+
+    mock_pinecone_db.upsert(documents=create_test_documents(3), content_hash="test_hash")
+
+    assert embedder.calls == 3

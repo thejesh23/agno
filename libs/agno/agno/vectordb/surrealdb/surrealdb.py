@@ -443,7 +443,8 @@ class SurrealDb(VectorDb):
             self._delete_by_content_hash(content_hash, user_id=user_id)
 
         for doc in documents:
-            doc.embed(embedder=self.embedder)
+            if doc.embedding is None:
+                doc.embed(embedder=self.embedder)
             meta_data: Dict[str, Any] = doc.meta_data if isinstance(doc.meta_data, dict) else {}
             meta_data["content_hash"] = content_hash
             if doc.name is not None:
@@ -821,7 +822,8 @@ class SurrealDb(VectorDb):
             await self._async_delete_by_content_hash(content_hash, user_id=user_id)
 
         for doc in documents:
-            doc.embed(embedder=self.embedder)
+            if doc.embedding is None:
+                doc.embed(embedder=self.embedder)
             meta_data: Dict[str, Any] = doc.meta_data if isinstance(doc.meta_data, dict) else {}
             meta_data["content_hash"] = content_hash
             if doc.name is not None:

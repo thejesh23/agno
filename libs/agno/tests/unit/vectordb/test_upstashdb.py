@@ -7,6 +7,8 @@ import pytest
 from agno.knowledge.document import Document
 from agno.vectordb.upstashdb import UpstashVectorDb
 
+from .conftest import CountingEmbedder
+
 
 @pytest.fixture
 def mock_embedder():
@@ -322,3 +324,26 @@ def test_get_index_info(upstash_db):
     info = upstash_db.get_index_info()
     assert info.vector_count == 100
     assert info.dimension == 384
+
+
+def test_upsert_embeds_each_document_once(mock_upstash_index, sample_documents):
+    """upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    db = UpstashVectorDb(url="https://test-url.upstash.io", token="test-token", embedder=embedder)
+    db._index = mock_upstash_index
+
+    db.upsert(content_hash="test_hash", documents=sample_documents)
+
+    assert embedder.calls == len(sample_documents)
+    db.index.upsert.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_upsert_embeds_each_document_once(mock_upstash_index, sample_documents):
+    embedder = CountingEmbedder()
+    db = UpstashVectorDb(url="https://test-url.upstash.io", token="test-token", embedder=embedder)
+    db._index = mock_upstash_index
+
+    await db.async_upsert(content_hash="test_hash", documents=sample_documents)
+
+    assert embedder.calls == len(sample_documents)

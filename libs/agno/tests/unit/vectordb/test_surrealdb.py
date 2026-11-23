@@ -6,6 +6,8 @@ import pytest
 from agno.knowledge.document import Document
 from agno.vectordb.surrealdb import SurrealDb
 
+from .conftest import CountingEmbedder
+
 try:
     from surrealdb import Surreal
 except ImportError:
@@ -395,3 +397,23 @@ async def test_async_exists(async_surrealdb_vector: SurrealDb, mock_async_surrea
 
     result = await async_surrealdb_vector.async_exists()
     assert result is False
+
+
+def test_upsert_embeds_each_document_once(surrealdb_vector, sample_documents):
+    """upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    surrealdb_vector.embedder = embedder
+
+    surrealdb_vector.upsert(content_hash="test_hash", documents=sample_documents)
+
+    assert embedder.calls == len(sample_documents)
+
+
+@pytest.mark.asyncio
+async def test_async_upsert_embeds_each_document_once(async_surrealdb_vector, sample_documents):
+    embedder = CountingEmbedder()
+    async_surrealdb_vector.embedder = embedder
+
+    await async_surrealdb_vector.async_upsert(content_hash="test_hash", documents=sample_documents)
+
+    assert embedder.calls == len(sample_documents)

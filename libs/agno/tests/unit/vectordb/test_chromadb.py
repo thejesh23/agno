@@ -11,6 +11,8 @@ from agno.vectordb.chroma.chromadb import reciprocal_rank_fusion
 from agno.vectordb.distance import Distance
 from agno.vectordb.search import SearchType
 
+from .conftest import CountingEmbedder
+
 TEST_COLLECTION = "test_collection"
 TEST_PATH = "tmp/test_chromadb"
 
@@ -1533,3 +1535,30 @@ async def test_async_upsert_runs_batch_on_worker_thread(chroma_db, sample_docume
             "_batch_operation ran on the asyncio main thread; the synchronous ChromaDB "
             "batch must be offloaded so the event loop stays responsive during async_upsert"
         )
+
+
+def test_upsert_embeds_each_document_once():
+    """upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    db = ChromaDb(collection="embed_once", embedder=embedder, persistent_client=False)
+    db.create()
+    docs = [Document(content=f"chunk {i}") for i in range(5)]
+
+    db.upsert(content_hash="hash", documents=docs)
+
+    assert embedder.calls == 5
+    assert db.get_count() == 5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("enable_batch", [False, True])
+async def test_async_upsert_embeds_each_document_once(enable_batch):
+    embedder = CountingEmbedder(enable_batch=enable_batch)
+    db = ChromaDb(collection=f"embed_once_async_{enable_batch}", embedder=embedder, persistent_client=False)
+    db.create()
+    docs = [Document(content=f"chunk {i}") for i in range(5)]
+
+    await db.async_upsert(content_hash="hash", documents=docs)
+
+    assert embedder.calls == 5
+    assert db.get_count() == 5

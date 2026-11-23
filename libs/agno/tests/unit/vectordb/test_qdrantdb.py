@@ -7,6 +7,8 @@ import pytest
 from agno.knowledge.document import Document
 from agno.vectordb.qdrant import Qdrant
 
+from .conftest import CountingEmbedder
+
 
 @pytest.fixture
 def mock_qdrant_client():
@@ -621,3 +623,15 @@ async def test_concurrent_async_searches_no_blocking(tracking_embedder):
     # All should use async embedder
     assert tracking_embedder.async_call_count == 5, "async_get_embedding should be called 5 times"
     assert tracking_embedder.sync_call_count == 0, "sync get_embedding should NOT be called"
+
+
+def test_upsert_embeds_each_document_once(sample_documents):
+    """upsert embeds before replacing old chunks, so insert must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    db = Qdrant(collection="embed_once", location=":memory:", embedder=embedder)
+    db.create()
+
+    db.upsert(content_hash="hash", documents=sample_documents)
+
+    assert embedder.calls == len(sample_documents)
+    assert db.get_count() == len(sample_documents)

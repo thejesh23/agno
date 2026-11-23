@@ -7,6 +7,8 @@ from agno.knowledge.document import Document
 from agno.utils.log import log_debug
 from agno.vectordb.distance import Distance
 
+from .conftest import CountingEmbedder
+
 # Ensure Milvus is available and usable in the current environment.
 # This handles some CI errors when running Milvus in GitHub Actions.
 try:
@@ -750,3 +752,13 @@ def test_decode_json_field_helper():
     assert Milvus._decode_json_field(None, default={}) == {}
     assert Milvus._decode_json_field("", default={}) == {}
     assert Milvus._decode_json_field("not json", default={"fallback": True}) == {"fallback": True}
+
+
+def test_upsert_embeds_each_document_once(milvus_db, sample_documents):
+    """upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    milvus_db.embedder = embedder
+
+    milvus_db.upsert(documents=sample_documents, content_hash="test_hash")
+
+    assert embedder.calls == len(sample_documents)

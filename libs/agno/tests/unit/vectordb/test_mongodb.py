@@ -11,6 +11,8 @@ from pymongo.database import Database
 from agno.knowledge.document import Document
 from agno.vectordb.mongodb import MongoVectorDb
 
+from .conftest import CountingEmbedder
+
 
 @pytest.fixture
 def mock_embedder() -> MagicMock:
@@ -751,3 +753,14 @@ async def test_async_search_uses_async_embedder(
         # Verify async embedder was called, not sync
         assert tracking_embedder.async_call_count == 1, "async_get_embedding should be called once"
         assert tracking_embedder.sync_call_count == 0, "sync get_embedding should NOT be called"
+
+
+def test_upsert_embeds_each_document_once(vector_db: MongoVectorDb) -> None:
+    """upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    vector_db.embedder = embedder
+    docs = create_test_documents(3)
+
+    vector_db.upsert(content_hash="test_hash", documents=docs)
+
+    assert embedder.calls == 3

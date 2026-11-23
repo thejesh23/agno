@@ -10,6 +10,8 @@ from agno.vectordb.search import SearchType
 from agno.vectordb.weaviate import Weaviate
 from agno.vectordb.weaviate.index import Distance, VectorIndex
 
+from .conftest import CountingEmbedder
+
 
 @pytest.fixture
 def mock_weaviate_client():
@@ -402,3 +404,13 @@ async def test_async_exists(mock_embedder):
     with patch.object(db, "async_exists", return_value=True):
         result = await db.async_exists()
         assert result is True
+
+
+def test_upsert_embeds_each_document_once(weaviate_db, sample_documents):
+    """upsert embeds before replacing old chunks, so insert must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    weaviate_db.embedder = embedder
+
+    weaviate_db.upsert(content_hash="test_hash", documents=sample_documents)
+
+    assert embedder.calls == len(sample_documents)

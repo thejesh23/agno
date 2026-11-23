@@ -1199,17 +1199,23 @@ class CouchbaseSearch(VectorDb):
         async_collection_instance = await self.get_async_collection()
         all_docs_to_upsert: Dict[str, Any] = {}
 
-        if self.embedder.enable_batch and hasattr(self.embedder, "async_get_embeddings_batch_and_usage"):
+        # Skip documents already embedded, e.g. by aembed_before_replace() in async_upsert
+        docs_to_embed = [doc for doc in documents if doc.embedding is None]
+        if (
+            docs_to_embed
+            and self.embedder.enable_batch
+            and hasattr(self.embedder, "async_get_embeddings_batch_and_usage")
+        ):
             # Use batch embedding when enabled and supported
             try:
                 # Extract content from all documents
-                doc_contents = [doc.content for doc in documents]
+                doc_contents = [doc.content for doc in docs_to_embed]
 
                 # Get batch embeddings and usage
                 embeddings, usages = await self.embedder.async_get_embeddings_batch_and_usage(doc_contents)
 
                 # Process documents with pre-computed embeddings
-                for j, doc in enumerate(documents):
+                for j, doc in enumerate(docs_to_embed):
                     try:
                         if j < len(embeddings):
                             doc.embedding = embeddings[j]
@@ -1227,12 +1233,12 @@ class CouchbaseSearch(VectorDb):
                 else:
                     log_warning(f"Async batch embedding failed, falling back to individual embeddings: {str(e)}")
                     # Fall back to individual embedding
-                    embed_tasks = [doc.async_embed(embedder=self.embedder) for doc in documents]
+                    embed_tasks = [doc.async_embed(embedder=self.embedder) for doc in docs_to_embed]
                     results = await asyncio.gather(*embed_tasks, return_exceptions=True)
                     raise_embedding_failures(results)
         else:
             # Use individual embedding
-            embed_tasks = [document.async_embed(embedder=self.embedder) for document in documents]
+            embed_tasks = [document.async_embed(embedder=self.embedder) for document in docs_to_embed]
             results = await asyncio.gather(*embed_tasks, return_exceptions=True)
             raise_embedding_failures(results)
 

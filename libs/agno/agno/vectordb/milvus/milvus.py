@@ -730,7 +730,8 @@ class Milvus(VectorDb):
 
         if self.search_type == SearchType.hybrid:
             for document in documents:
-                document.embed(embedder=self.embedder)
+                if document.embedding is None:
+                    document.embed(embedder=self.embedder)
                 data = self._prepare_document_data(
                     content_hash=content_hash, document=document, include_vectors=True, user_id=user_id
                 )
@@ -741,7 +742,8 @@ class Milvus(VectorDb):
                 log_debug(f"Upserted hybrid document: {document.name} ({document.meta_data})")
         else:
             for document in documents:
-                document.embed(embedder=self.embedder)
+                if document.embedding is None:
+                    document.embed(embedder=self.embedder)
                 cleaned_content = document.content.replace("\x00", "\ufffd")
                 base_id = document.id or md5(cleaned_content.encode()).hexdigest()
                 doc_id = self._scoped_doc_id(base_id, content_hash, user_id)

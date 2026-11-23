@@ -417,13 +417,15 @@ class Qdrant(VectorDb):
 
             if self.search_type == SearchType.vector:
                 # For vector search, maintain backward compatibility with unnamed vectors
-                document.embed(embedder=self.embedder)
+                if document.embedding is None:
+                    document.embed(embedder=self.embedder)
                 vector = document.embedding  # type: ignore
             else:
                 # For other search types, use named vectors
                 vector = {}
                 if self.search_type in [SearchType.hybrid]:
-                    document.embed(embedder=self.embedder)
+                    if document.embedding is None:
+                        document.embed(embedder=self.embedder)
                     vector[self.dense_vector_name] = document.embedding
 
                 if self.search_type in [SearchType.keyword, SearchType.hybrid]:

@@ -37,6 +37,28 @@ class DeterministicEmbedder:
         return self.embed(document)
 
 
+class CountingEmbedder(DeterministicEmbedder):
+    """DeterministicEmbedder that counts how many texts it has embedded."""
+
+    def __init__(self, dimensions: int = 1024, enable_batch: bool = False):
+        super().__init__(dimensions)
+        self.enable_batch = enable_batch
+        self.calls = 0
+
+    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Dict[str, Any]]:
+        self.calls += 1
+        return self.get_embedding(text), {"total_tokens": 1}
+
+    async def async_get_embedding_and_usage(self, text: str) -> Tuple[List[float], Dict[str, Any]]:
+        return self.get_embedding_and_usage(text)
+
+    async def async_get_embeddings_batch_and_usage(
+        self, texts: List[str]
+    ) -> Tuple[List[List[float]], List[Dict[str, Any]]]:
+        self.calls += len(texts)
+        return [self.get_embedding(t) for t in texts], [{"total_tokens": 1} for _ in texts]
+
+
 @pytest.fixture(scope="session")
 def mock_embedder():
     """Create a mock embedder with appropriate return values."""

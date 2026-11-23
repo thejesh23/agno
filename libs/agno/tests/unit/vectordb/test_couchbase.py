@@ -24,6 +24,8 @@ from agno.knowledge.document import Document
 from agno.knowledge.embedder.openai import OpenAIEmbedder
 from agno.vectordb.couchbase.couchbase import CouchbaseSearch
 
+from .conftest import CountingEmbedder
+
 
 @pytest.fixture
 def mock_async_cluster():
@@ -1425,3 +1427,18 @@ def test_async_create_collection_does_not_block_event_loop():
     assert "asyncio.sleep" in source, (
         "_async_create_collection_and_scope is expected to use `await asyncio.sleep` for its post-drop wait."
     )
+
+
+@pytest.mark.asyncio
+async def test_async_upsert_embeds_each_document_once(couchbase_fts):
+    """async_upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    couchbase_fts.embedder = embedder
+    documents = [Document(name=f"doc{i}", content=f"content{i}") for i in range(3)]
+    mock_async_collection_instance = AsyncMock(spec=AsyncCollection)
+    mock_async_collection_instance.upsert = AsyncMock(return_value=None)
+
+    with patch.object(couchbase_fts, "get_async_collection", AsyncMock(return_value=mock_async_collection_instance)):
+        await couchbase_fts.async_upsert(documents=documents, content_hash="test_hash")
+
+    assert embedder.calls == 3

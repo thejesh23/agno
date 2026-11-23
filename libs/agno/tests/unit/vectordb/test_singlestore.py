@@ -9,6 +9,8 @@ from agno.knowledge.document import Document
 from agno.vectordb.distance import Distance
 from agno.vectordb.singlestore import SingleStore
 
+from .conftest import CountingEmbedder
+
 TEST_COLLECTION = "test_collection"
 TEST_SCHEMA = "test_schema"
 
@@ -357,3 +359,13 @@ def test_delete_by_metadata_complex(singlestore_db, mock_session):
         result = singlestore_db.delete_by_metadata({"spicy": False})
         assert result is True
         mock_delete_by_metadata.assert_called_once_with({"spicy": False})
+
+
+def test_upsert_embeds_each_document_once(singlestore_db, sample_documents):
+    """upsert embeds before replacing old chunks, so the write must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    singlestore_db.embedder = embedder
+
+    singlestore_db.upsert(documents=sample_documents, content_hash="test_hash")
+
+    assert embedder.calls == len(sample_documents)

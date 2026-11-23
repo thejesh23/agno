@@ -8,6 +8,8 @@ from agno.knowledge.document import Document
 from agno.vectordb.cassandra import Cassandra
 from agno.vectordb.cassandra.index import AgnoMetadataVectorCassandraTable
 
+from .conftest import CountingEmbedder
+
 
 @pytest.fixture
 def mock_session():
@@ -537,3 +539,23 @@ def test_metadata_matches_helper(vector_db):
     # Test value mismatch
     target_metadata = {"cuisine": "Thai", "type": "curry"}
     assert vector_db._metadata_matches(row_metadata, target_metadata) is False
+
+
+def test_upsert_embeds_each_document_once(vector_db):
+    """upsert embeds before replacing old chunks, so insert must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    vector_db.embedder = embedder
+
+    vector_db.upsert(documents=create_test_documents(3), content_hash="test_content_hash")
+
+    assert embedder.calls == 3
+
+
+@pytest.mark.asyncio
+async def test_async_upsert_embeds_each_document_once(vector_db):
+    embedder = CountingEmbedder()
+    vector_db.embedder = embedder
+
+    await vector_db.async_upsert(documents=create_test_documents(3), content_hash="test_content_hash")
+
+    assert embedder.calls == 3

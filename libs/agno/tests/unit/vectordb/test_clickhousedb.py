@@ -7,6 +7,8 @@ from agno.knowledge.document import Document
 from agno.vectordb.clickhouse import Clickhouse
 from agno.vectordb.search import SearchType
 
+from .conftest import CountingEmbedder
+
 # Configuration for tests
 TEST_TABLE = f"test_clickhouse_{uuid.uuid4().hex[:8]}"
 TEST_DB = "test_db"
@@ -594,3 +596,29 @@ def test_delete_methods_error_handling(mock_clickhouse):
     assert mock_clickhouse.delete_by_name("test_name") is False
     assert mock_clickhouse.delete_by_metadata({"type": "test"}) is False
     assert mock_clickhouse.delete_by_content_id("test_content_id") is False
+
+
+def test_upsert_embeds_each_document_once(mock_clickhouse):
+    """upsert embeds before replacing old chunks, so insert must not embed the same chunks again."""
+    embedder = CountingEmbedder()
+    mock_clickhouse.embedder = embedder
+    query_result = MagicMock()
+    query_result.result_rows = []
+    mock_clickhouse.client.query.return_value = query_result
+
+    mock_clickhouse.upsert(documents=create_test_documents(3), content_hash="test_hash")
+
+    assert embedder.calls == 3
+
+
+@pytest.mark.asyncio
+async def test_async_upsert_embeds_each_document_once(mock_clickhouse):
+    embedder = CountingEmbedder()
+    mock_clickhouse.embedder = embedder
+    query_result = MagicMock()
+    query_result.result_rows = []
+    mock_clickhouse.async_client.query.return_value = query_result
+
+    await mock_clickhouse.async_upsert(documents=create_test_documents(3), content_hash="test_hash")
+
+    assert embedder.calls == 3
